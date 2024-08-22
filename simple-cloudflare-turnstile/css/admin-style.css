@@ -1,0 +1,162 @@
+.sct-wrap {
+  padding: 10px;
+  max-width: 720px;
+}
+
+.sct-accordion {
+  display: block;
+  margin: 20px 0;
+  padding: 16px;
+  background-color: #fff;
+  color: #333;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  border: none;
+  outline: none;
+  transition: background-color 0.2s ease-in-out;
+  font-size: 16px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  max-width: 480px;
+}
+
+.sct-active,
+.sct-accordion:hover {
+  background-color: #d7e2eb;
+  color: #333;
+}
+
+.sct-panel {
+  margin-top: -20px;
+  padding: 20px;
+  background-color: white;
+  display: none;
+  overflow: hidden;
+  border-bottom-left-radius: 5px;
+  border-bottom-right-radius: 5px;
+  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.1);
+  max-width: calc(480px - 40px);
+}
+
+.sct-panel tr:not(:last-child) {
+    border-bottom: 1px solid #f3f3f3;
+}
+
+.sct-accordion:after {
+  content: '\25BC';
+  font-size: 12px;
+  color: #777;
+  float: right;
+  margin-top: 2px;
+  margin-left: 5px;
+}
+
+.sct-active:after {
+  content: "\25B2";
+}
+
+.cfturnstile-settings .form-table th {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cfturnstile-settings .sct-panel .form-table th {
+  width: 240px;
+}
+
+.cfturnstile-settings input[type="checkbox"] {
+  transform: scale(1.1);
+}
+
+.cfturnstile-settings .button.button-primary {
+  font-size: 14px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  padding: 8px 24px;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: none;
+}
+
+.sct-admin-promo-top .dashicons-star-filled {
+  color: orange;
+  margin-top: 5px;
+  font-size: 12px;
+  width: 12px;
+}
+
+.sct-admin-promo .dashicons-star-filled {
+  color: orange;
+  margin-top: 5px;
+  font-size: 15px;
+  width: 15px;
+}
+
+.sct-admin-promo {
+  background: #fff;
+  padding: 10px 20px;
+  border-radius: 5px;
+  margin-top: 70px;
+  max-width: calc(480px - 40px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sct-wrap input[type="text"] {
+  padding: 5px 10px;
+  border-radius: 8px;
+  min-width: 240px;
+}
+.sct-wrap input[type="text"]:focus {
+  border-color: #cbdded;
+}
+
+.sct-wrap input[type="checkbox"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border: 2px solid #aaa;
+  border-radius: 4px;
+  width: 18px;
+  height: 18px;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease-out;
+}
+
+.sct-wrap select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-color: #fff;
+  border: 1px solid #aaa;
+  border-radius: 8px;
+  padding: 4px 10px;
+  min-width: 240px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+}
+.sct-wrap select:focus {
+  box-shadow: 0 0 0 2px #cbdded;
+}
+
+.sct-wrap .sct-panel input[type="checkbox"], .sct-wrap .sct-panel select {
+  float: right;
+}
+.sct-wrap .sct-panel input[type="text"], .sct-wrap .sct-panel select {
+  padding: 2px 8px;
+  min-width: 150px !important;
+  max-width: 200px;
+}
+
+.cfturnstile-settings span.dashicons.dashicons-yes-alt {
+  height: 28px;
+  width: 28px;
+  font-size: 28px;
+  display: inline-block;
+  margin-top: -2px;
+  margin-left: -5px;
+}
