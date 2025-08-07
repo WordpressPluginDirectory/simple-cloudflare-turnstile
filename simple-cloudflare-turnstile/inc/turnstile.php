@@ -27,6 +27,7 @@ function cfturnstile_field_show($button_id = '', $callback = '', $form_name = ''
 		$theme = sanitize_text_field(get_option('cfturnstile_theme'));
 		$language = sanitize_text_field(get_option('cfturnstile_language'));
 		$appearance = sanitize_text_field(get_option('cfturnstile_appearance', 'always'));
+		$cfturnstile_size = sanitize_text_field(get_option('cfturnstile_size'), 'normal');
 			if(!$language) { $language = 'auto'; }
 		?>
 		<div id="cf-turnstile<?php echo esc_attr($unique_id); ?>"
@@ -34,6 +35,7 @@ function cfturnstile_field_show($button_id = '', $callback = '', $form_name = ''
 		data-sitekey="<?php echo esc_attr($key); ?>"
 		data-theme="<?php echo esc_attr($theme); ?>"
 		data-language="<?php echo esc_attr($language); ?>"
+		data-size="<?php echo esc_attr($cfturnstile_size); ?>"
 		data-retry="auto" data-retry-interval="1000"
 		data-action="<?php echo esc_attr($form_name); ?>"
 		<?php if(get_option('cfturnstile_failure_message_enable')) { ?>
@@ -42,18 +44,17 @@ function cfturnstile_field_show($button_id = '', $callback = '', $form_name = ''
 		<?php } ?>
 		data-appearance="<?php echo esc_attr($appearance); ?>"></div>
 		<?php
-		do_action("cfturnstile_after_field", esc_attr($unique_id));
+		do_action("cfturnstile_after_field", esc_attr($unique_id), $button_id);
 	}
 }
-
 
 /**
  * Add Styles Below Turnstile if Disable Submit Enabled
  *
  * @return bool
  */
-add_action('cfturnstile_after_field', 'cfturnstile_disable_button_styles', 10, 1);
-function cfturnstile_disable_button_styles($button_id) {
+add_action('cfturnstile_after_field', 'cfturnstile_disable_button_styles', 10, 2);
+function cfturnstile_disable_button_styles($unique_id, $button_id) {
 	if ($button_id && get_option('cfturnstile_disable_button')) {
 		?>
 		<style><?php echo esc_html($button_id); ?> { pointer-events: none; opacity: 0.5; }</style>
@@ -86,6 +87,9 @@ function cfturnstile_always_br($unique_id) {
  */
 add_action('cfturnstile_after_field', 'cfturnstile_admin_styles', 20, 1);
 function cfturnstile_admin_styles($unique_id) {
+	if(defined('DOING_AJAX') || is_admin()) {
+		return;
+	}
 	$is_checkout = (function_exists('is_checkout') && is_checkout()) ? true : false;
 	if ((!is_page() && !is_single() && !$is_checkout) || strpos($_SERVER['PHP_SELF'], 'wp-login.php') !== false) {
 		?>
@@ -101,6 +105,9 @@ function cfturnstile_admin_styles($unique_id) {
  */
 add_action('cfturnstile_after_field', 'cfturnstile_failed_text', 5, 1);
 function cfturnstile_failed_text($unique_id) {
+	if(function_exists('cfturnstile_is_block_based_checkout') && cfturnstile_is_block_based_checkout()) {
+		return;
+	}
 	if(get_option('cfturnstile_failure_message_enable')) {
 	$failed_text = get_option('cfturnstile_failure_message');
 	if(!$failed_text) { $failed_text = esc_html__('Failed to verify you are human. Please contact us if you are having issues.', 'simple-cloudflare-turnstile'); }
@@ -125,11 +132,14 @@ function cfturnstile_failed_text($unique_id) {
  */
 add_action("cfturnstile_after_field", "cfturnstile_force_render", 10, 1);
 function cfturnstile_force_render($unique_id = '') {
+	if(function_exists('cfturnstile_is_block_based_checkout') && cfturnstile_is_block_based_checkout()) {
+		return;
+	}
 	$unique_id = sanitize_text_field($unique_id);
 	$key = sanitize_text_field(get_option('cfturnstile_key'));
 	if($unique_id) {
 	?>
-	<script>document.addEventListener("DOMContentLoaded",(function(){var e=document.getElementById("cf-turnstile<?php echo esc_html($unique_id); ?>");e&&!e.innerHTML.trim()&&(turnstile.remove("#cf-turnstile<?php echo esc_html($unique_id); ?>"),turnstile.render("#cf-turnstile<?php echo esc_html($unique_id); ?>",{sitekey:"<?php echo esc_html($key); ?>"}))}));</script>
+	<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function(){ var e=document.getElementById("cf-turnstile<?php echo esc_html($unique_id); ?>"); e&&!e.innerHTML.trim()&&(turnstile.remove("#cf-turnstile<?php echo esc_html($unique_id); ?>"), turnstile.render("#cf-turnstile<?php echo esc_html($unique_id); ?>", {sitekey:"<?php echo esc_html($key); ?>"})); }, 0); });</script>
 	<?php
 	}
 }
@@ -218,6 +228,10 @@ function cfturnstile_log($response, $results) {
 		if(!$cfturnstile_log) {
 			$cfturnstile_log = array();
 		}
+		// If $results['error_code'] is not set, set it to empty
+		if(!isset($results['error_code'])) {
+			$results['error_code'] = '';
+		}
 		// Get Values
 		$error_code = $results['error_code'];
 		// Success Yes or No
@@ -259,6 +273,7 @@ function cfturnstile_form_disable($id, $option) {
  * Create shortcode to display Turnstile widget
  */
 add_shortcode('simple-turnstile', 'cfturnstile_shortcode');
+add_action('cfturnstile_display_widget', 'cfturnstile_shortcode', 10, 0);
 function cfturnstile_shortcode() {
 	ob_start();
 	echo cfturnstile_field_show('', '');

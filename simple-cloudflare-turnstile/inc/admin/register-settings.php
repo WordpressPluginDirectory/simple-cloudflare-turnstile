@@ -45,6 +45,7 @@ function cfturnstile_settings_list($all = false) {
         'cfturnstile_defer_scripts',
         'cfturnstile_language',
         'cfturnstile_appearance',
+        'cfturnstile_size',
         'cfturnstile_failure_message_enable',
         'cfturnstile_failure_message',
         'cfturnstile_login',
@@ -99,6 +100,10 @@ function cfturnstile_settings_list($all = false) {
             'cfturnstile_fluent',
             'cfturnstile_fluent_disable',
         ),
+        'jetpack/jetpack.php' => array(
+            'cfturnstile_jetpack',
+            'cfturnstile_jetpack_disable',
+        ),
         'formidable/formidable.php' => array(
             'cfturnstile_formidable',
             'cfturnstile_formidable_pos',
@@ -124,6 +129,16 @@ function cfturnstile_settings_list($all = false) {
             'cfturnstile_bbpress_align',
         ),
         'elementor-pro/elementor-pro.php' => array(
+            'cfturnstile_elementor',
+            'cfturnstile_elementor_pos',
+        ),
+        'mailpoet/mailpoet.php' => array(
+            'cfturnstile_mailpoet',
+        ),
+        'kadence-blocks/kadence-blocks.php' => array(
+            'cfturnstile_kadence',
+        ),
+        'pro-elements/pro-elements.php' => array(
             'cfturnstile_elementor',
             'cfturnstile_elementor_pos',
         ),

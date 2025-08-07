@@ -57,6 +57,13 @@ function turnstileElementorCallback() {
         el.style.opacity = '1';
     });
 }
+/* Kadence */
+function turnstileKadenceCallback() {
+    document.querySelectorAll('.kb-submit-field .kb-button').forEach(function(el) {
+        el.style.pointerEvents = 'auto';
+        el.style.opacity = '1';
+    });
+}
 /* CF7 */
 function turnstileCF7Callback() {
     document.querySelectorAll('.wpcf7-submit').forEach(function(el) {
@@ -67,6 +74,13 @@ function turnstileCF7Callback() {
 /* MC4WP */
 function turnstileMC4WPCallback() {
     document.querySelectorAll('.mc4wp-form-fields input[type=submit]').forEach(function(el) {
+        el.style.pointerEvents = 'auto';
+        el.style.opacity = '1';
+    });
+}
+/* MailPoet */
+function turnstileMailpoetCallback() {
+    document.querySelectorAll('.mailpoet_submit').forEach(function(el) {
         el.style.pointerEvents = 'auto';
         el.style.opacity = '1';
     });

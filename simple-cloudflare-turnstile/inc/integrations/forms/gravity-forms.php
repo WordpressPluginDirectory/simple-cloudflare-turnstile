@@ -19,7 +19,7 @@ if(get_option('cfturnstile_gravity')) {
     .gf-turnstile-container { width: 100%; }
     .gform_footer.top_label { display: flex; flex-wrap: wrap; }
     </style>
-    <script>document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('#gform_<?php echo esc_html($form_id); ?>').forEach(function(e){e.addEventListener('submit',function(){if(document.getElementById('cf-turnstile-gf-<?php echo esc_html($form_id); ?>')){setTimeout(function(){turnstile.remove('#cf-turnstile-gf-<?php echo esc_html($form_id); ?>');turnstile.render('#cf-turnstile-gf-<?php echo esc_html($form_id); ?>');},10000)}})})});</script>
+    <script>document.addEventListener("DOMContentLoaded", function() {document.addEventListener('gform/post_render', function handlePostRender(event) {if (event.detail.formId !== <?php echo $form_id; ?>) {return;}gform.utils.addAsyncFilter('gform/submission/pre_submission', async function handlePreSubmission(data) {document.addEventListener('gform/post_render', function rerenderTurnstile(event) {if (event.detail.formId !== <?php echo $form_id; ?>) {return;}const turnstileElement = document.getElementById('cf-turnstile-gf-<?php echo esc_html($form_id); ?>');if (turnstileElement) {turnstile.remove('#cf-turnstile-gf-<?php echo esc_html($form_id); ?>');turnstile.render('#cf-turnstile-gf-<?php echo esc_html($form_id); ?>');}document.removeEventListener('gform/post_render', rerenderTurnstile);});gform.utils.removeFilter('gform/submission/pre_submission', handlePreSubmission);return data;});document.removeEventListener('gform/post_render', handlePostRender);});});</script>
     <?php
   	$thecontent = ob_get_contents();
   	ob_end_clean();
@@ -42,20 +42,52 @@ if(get_option('cfturnstile_gravity')) {
   }
 
   // Gravity Forms Check
-	add_action('gform_pre_submission', 'cfturnstile_gravity_check', 10, 1);
-	function cfturnstile_gravity_check($form) {
-    if(!cfturnstile_whitelisted() && !cfturnstile_form_disable($form['id'], 'cfturnstile_gravity_disable')) {
-  		if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['cf-turnstile-response'] ) ) {
-  			$check = cfturnstile_check();
-  			$success = $check['success'];
-  			if($success != true) {
-          wp_die( '<p><strong>' . esc_html__( 'ERROR:', 'simple-cloudflare-turnstile' ) . '</strong> ' . cfturnstile_failed_message() . '</p>', 'simple-cloudflare-turnstile', array( 'response'  => 403, 'back_link' => 1, ) );
-  			}
-  		} else {
-        wp_die( '<p><strong>' . esc_html__( 'ERROR:', 'simple-cloudflare-turnstile' ) . '</strong> ' . cfturnstile_failed_message() . '</p>', 'simple-cloudflare-turnstile', array( 'response'  => 403, 'back_link' => 1, ) );
-  		}
+  add_action('gform_validation', 'cfturnstile_gravity_check', 10, 4);
+
+  function cfturnstile_gravity_check($validation_result)
+  {
+    $form = $validation_result['form'];
+    // if whitelisted or form is disabled, return
+    if (cfturnstile_whitelisted() || cfturnstile_form_disable($form['id'], 'cfturnstile_gravity_disable')) {
+      return $validation_result;
     }
-    return $form;
-	}
+    
+    // if not a POST request or no cf-turnstile-response, return
+    if ('POST' !== $_SERVER['REQUEST_METHOD'] || !isset($_POST['cf-turnstile-response'])) {
+      $_SESSION['cf-turnstile-response'] = cfturnstile_failed_message();
+      $validation_result['is_valid'] = false;
+      add_filter('gform_validation_message_' . $form['id'], 'cfturnstile_gravity_validation_message', 10, 2);
+      return $validation_result;
+    }
+
+    $check = cfturnstile_check();
+    $success = $check['success'];
+    // if check fails, return error
+    if ($success != true) {
+      $_SESSION['cf-turnstile-response'] = cfturnstile_failed_message();
+      $validation_result['is_valid'] = false;
+      add_filter('gform_validation_message_' . $form['id'], 'cfturnstile_gravity_validation_message', 10, 2);
+
+      return $validation_result;
+    }
+  
+    return $validation_result;
+  }
+
+  function cfturnstile_gravity_validation_message($message, $form)
+  {
+    if (isset($_SESSION['cf-turnstile-response'])) {
+      $error = $_SESSION['cf-turnstile-response'];
+      unset($_SESSION['cf-turnstile-response']);
+
+      $message = '<div class="gform_validation_errors" id="gform_' . $form['id'] . '_validation_container">
+      <h2 class="gform_submission_error hide_summary"><span class="gform-icon gform-icon--close"></span>
+      ' . esc_html($error) . '
+      </h2>
+      </div>';
+    }
+
+    return $message;
+  }
 
 }
