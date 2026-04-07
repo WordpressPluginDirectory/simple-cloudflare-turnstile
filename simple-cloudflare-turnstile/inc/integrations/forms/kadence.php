@@ -4,34 +4,56 @@ if (!defined('ABSPATH')) {
 }
 if (get_option("cfturnstile_kadence")) {
 
-    // Enqueue Turnstile JS for Kadence Blocks Form
-    add_action('wp_enqueue_scripts', 'cfturnstile_enqueue_kadence_script');
-    function cfturnstile_enqueue_kadence_script() {
+    /**
+     * Inject Turnstile into Kadence blocks on the server.
+     * This is more reliable than JS injection because Kadence Advanced Form is a dynamic block.
+     */
+    add_filter('render_block', 'cfturnstile_kadence_inject_turnstile', 10, 2);
+    function cfturnstile_kadence_inject_turnstile($block_content, $block) {
+        if (is_admin()) {
+            return $block_content;
+        }
+        if (empty($block_content) || !is_array($block) || empty($block['blockName'])) {
+            return $block_content;
+        }
         if (cfturnstile_whitelisted()) {
-            return;
+            return $block_content;
         }
 
-        if (is_page() || is_single()) {
-            $content = get_the_content();
-            if (has_block('kadence/advanced-form', $content) || has_block('kadence/form', $content)) {
-                
-                // Enqueue the JavaScript file
-                wp_enqueue_script('cfturnstile-kadence', plugins_url('simple-cloudflare-turnstile/js/integrations/kadence.js'), array('cfturnstile'), '1.0', true);
-
-                $uniqueId = wp_rand();
-                ob_start();
-                cfturnstile_field_show('.kb-submit-field .kb-button', 'turnstileKadenceCallback', 'kdforms-' . $uniqueId, '-kadence');
-                $recaptcha_field = ob_get_clean();
-                // Remove line breaks and the failed text div
-                $recaptcha_field = preg_replace('/<br.*?>/', '', $recaptcha_field);
-                $recaptcha_field = preg_replace('/<div class="cf-turnstile-failed-text.*?<\/div>/', '', $recaptcha_field);
-                // Pass the site key to the JavaScript file
-                wp_localize_script('cfturnstile-kadence', 'cfTurnstileVars', [
-                    'sitekey' => get_option('cfturnstile_key'),
-                    'field' => $recaptcha_field
-                ]);
-            }
+        $block_name = (string) $block['blockName'];
+        if ($block_name !== 'kadence/advanced-form' && $block_name !== 'kadence/form') {
+            return $block_content;
         }
+
+        // Avoid duplicate injection.
+        if (strpos($block_content, 'cf-turnstile') !== false) {
+            return $block_content;
+        }
+
+        $unique_id = wp_rand();
+        $button_selector = '.kb-adv-form-submit-button, .kb-submit-field .kb-button, .kb-form-submit .kb-button';
+
+        ob_start();
+        cfturnstile_field_show($button_selector, 'turnstileKadenceCallback', 'kdforms-' . $unique_id, '-kadence-' . $unique_id);
+        $turnstile_field = ob_get_clean();
+
+        // Kadence layout is tight; remove extra line breaks and the generic failed text block.
+        $turnstile_field = preg_replace('/<br.*?>/', '', $turnstile_field);
+        $turnstile_field = preg_replace('/<div class="cf-turnstile-failed-text.*?<\/div>/', '', $turnstile_field);
+
+        // Insert immediately before the submit button when possible.
+        $pattern = '/(<[^>]*class=("|\")[^\"\"]*(wp-block-kadence-advanced-form-submit|kb-button)[^\"\"]*("|\")[^>]*>)/';
+        if (preg_match($pattern, $block_content)) {
+            return preg_replace($pattern, $turnstile_field . '$1', $block_content, 1);
+        }
+
+        // Fallback: inject before the closing form tag.
+        $pos = strripos($block_content, '</form>');
+        if ($pos !== false) {
+            return substr_replace($block_content, $turnstile_field, $pos, 0);
+        }
+
+        return $block_content;
     }
 
     // Kadence Blocks PRO Contact Form Submission Check
@@ -42,14 +64,10 @@ if (get_option("cfturnstile_kadence")) {
             return $nonce;
         }
 
-        if (empty($_POST['cf-turnstile-response'])) {
-            wp_die(__('Please verify that you are human.', 'simple-cloudflare-turnstile'));
-        }
-
-        $check = cfturnstile_check($_POST['cf-turnstile-response']);
+		$check = cfturnstile_check();
         $success = $check['success'];
         if ($success != true) {
-            wp_die(__('Please verify that you are human.', 'simple-cloudflare-turnstile'));
+            wp_die(cfturnstile_failed_message());
         }
 
         return $nonce;

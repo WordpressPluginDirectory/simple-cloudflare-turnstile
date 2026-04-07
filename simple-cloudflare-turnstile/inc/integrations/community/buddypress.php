@@ -15,7 +15,7 @@ if(get_option('cfturnstile_bp_register')) {
 	add_action('bp_signup_validate', 'cfturnstile_bp_register_check', 10, 1);
 	function cfturnstile_bp_register_check(){
 		if(!cfturnstile_whitelisted()) {
-			if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['cf-turnstile-response'] ) ) {
+			if ( 'POST' === $_SERVER['REQUEST_METHOD'] ) {
 				$check = cfturnstile_check();
 				$success = $check['success'];
 				if($success != true) {

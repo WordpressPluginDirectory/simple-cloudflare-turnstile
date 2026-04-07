@@ -29,7 +29,7 @@ function cfturnstile_um_check( $args ) {
   }
 
   // Check
-  if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['cf-turnstile-response'] ) ) {
+  if ( 'POST' === $_SERVER['REQUEST_METHOD'] ) {
     $check = cfturnstile_check();
     $success = $check['success'];
     if($success != true) {

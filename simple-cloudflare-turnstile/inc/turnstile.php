@@ -20,15 +20,40 @@ function cfturnstile_field_show($button_id = '', $callback = '', $form_name = ''
 	}
 	// Check if whitelisted
 	if(!cfturnstile_whitelisted()) {
+		// If failsafe enabled and Cloudflare appears down, either hide Turnstile or render reCAPTCHA via helper
+		if ( get_option('cfturnstile_failover') && cfturnstile_is_cloudflare_down() ) {
+			$failsafe_type = get_option('cfturnstile_failsafe_type', 'allow');
+			if ( $failsafe_type === 'recaptcha' ) {
+				cfturnstile_render_recaptcha_widget($unique_id);
+				return;
+			}
+			// Failsafe set to allow: do not render Turnstile, but post a marker so validation can pass
+			cfturnstile_render_allow_failsafe_marker();
+			return;
+		}
 		// Show Turnstile
 		do_action("cfturnstile_enqueue_scripts");
 		do_action("cfturnstile_before_field", esc_attr($unique_id));
+		if ( get_option('cfturnstile_widget_label_enable', 0) ) {
+			$label_text = get_option('cfturnstile_widget_label_text');
+			$label_text = is_string($label_text) ? trim($label_text) : '';
+			if ($label_text === '') {
+				$label_text = __('Let us know you are human:', 'simple-cloudflare-turnstile');
+			} else {
+				$label_text = wp_strip_all_tags($label_text);
+			}
+			?>
+			<p class="cfturnstile-widget-label" style="font-size: 14px; margin: 0 0 6px 0;"><small><?php echo esc_html($label_text); ?></small></p>
+			<?php
+		}
 		$key = sanitize_text_field(get_option('cfturnstile_key'));
 		$theme = sanitize_text_field(get_option('cfturnstile_theme'));
 		$language = sanitize_text_field(get_option('cfturnstile_language'));
 		$appearance = sanitize_text_field(get_option('cfturnstile_appearance', 'always'));
 		$cfturnstile_size = sanitize_text_field(get_option('cfturnstile_size'), 'normal');
+		$refresh_timeout = sanitize_text_field(get_option('cfturnstile_refresh_timeout', 'auto'));
 			if(!$language) { $language = 'auto'; }
+			if(!$refresh_timeout) { $refresh_timeout = 'auto'; }
 		?>
 		<div id="cf-turnstile<?php echo esc_attr($unique_id); ?>"
 		class="cf-turnstile<?php if($class) { echo " " . esc_attr($class); } ?>" <?php if (get_option('cfturnstile_disable_button')) { ?>data-callback="<?php echo esc_attr($callback); ?>"<?php } ?>
@@ -37,9 +62,11 @@ function cfturnstile_field_show($button_id = '', $callback = '', $form_name = ''
 		data-language="<?php echo esc_attr($language); ?>"
 		data-size="<?php echo esc_attr($cfturnstile_size); ?>"
 		data-retry="auto" data-retry-interval="1000"
+		data-refresh-expired="auto"
+		data-refresh-timeout="<?php echo esc_attr($refresh_timeout); ?>"
 		data-action="<?php echo esc_attr($form_name); ?>"
+		data-callback="<?php echo esc_attr($callback); ?>"
 		<?php if(get_option('cfturnstile_failure_message_enable')) { ?>
-		data-callback="cfturnstileCallback"
 		data-error-callback="cfturnstileErrorCallback"
 		<?php } ?>
 		data-appearance="<?php echo esc_attr($appearance); ?>"></div>
@@ -141,7 +168,7 @@ function cfturnstile_force_render($unique_id = '') {
 	$key = sanitize_text_field(get_option('cfturnstile_key'));
 	if($unique_id) {
 	?>
-	<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function(){ var e=document.getElementById("cf-turnstile<?php echo esc_html($unique_id); ?>"); e&&!e.innerHTML.trim()&&(turnstile.remove("#cf-turnstile<?php echo esc_html($unique_id); ?>"), turnstile.render("#cf-turnstile<?php echo esc_html($unique_id); ?>", {sitekey:"<?php echo esc_html($key); ?>"})); }, 0); });</script>
+	<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function(){ var e=document.getElementById("cf-turnstile<?php echo esc_html($unique_id); ?>"); if(e&&!e.innerHTML.trim()){turnstile.render(e, {sitekey:"<?php echo esc_html($key); ?>"});} }, 200); });</script>
 	<?php
 	}
 }
@@ -174,6 +201,18 @@ function cfturnstile_check($postdata = "") {
 		$postdata = sanitize_text_field($_POST['cf-turnstile-response']);
 	}
 
+	// If failsafe is present, handle it early
+	if ( get_option('cfturnstile_failover') && isset($_POST['cfturnstile_failsafe']) && cfturnstile_is_cloudflare_down() ) {
+		$failsafe_flag = sanitize_text_field($_POST['cfturnstile_failsafe']);
+		$failsafe_type = get_option('cfturnstile_failsafe_type', 'allow');
+		if ( $failsafe_flag === 'recaptcha' && $failsafe_type === 'recaptcha' ) {
+			return cfturnstile_verify_recaptcha();
+		}
+		if ( $failsafe_flag === 'allow' && $failsafe_type === 'allow' ) {
+			return array('success' => true);
+		}
+	}
+
 	// Get Turnstile Keys from Settings
 	$key = sanitize_text_field(get_option('cfturnstile_key'));
 	$secret = sanitize_text_field(get_option('cfturnstile_secret'));
@@ -183,12 +222,25 @@ function cfturnstile_check($postdata = "") {
 		$headers = array(
 			'body' => [
 				'secret' => $secret,
-				'response' => $postdata
+				'response' => $postdata,
+				'remoteip' => cfturnstile_get_ip(),
 			]
 		);
 		$verify = wp_remote_post('https://challenges.cloudflare.com/turnstile/v0/siteverify', $headers);
+
+		// Failover if Cloudflare is down (centralized handler)
+		$handled = cfturnstile_handle_failover_backend($verify);
+		if ( $handled !== null ) {
+			return $handled;
+		}
+
 		$verify = wp_remote_retrieve_body($verify);
 		$response = json_decode($verify);
+
+		if ( ! is_object( $response ) ) {
+			$results['success'] = false;
+			return $results;
+		}
 
 		if($response->success) {
 			$results['success'] = $response->success;
@@ -213,7 +265,7 @@ function cfturnstile_check($postdata = "") {
 
 	} else {
 
-		return false;
+		return array( 'success' => false );
 
 	}
 	
@@ -247,8 +299,8 @@ function cfturnstile_log($response, $results) {
 			'date' => date('Y-m-d H:i:s'),
 			'success' => $success,
 			'error' => $error_code,
-			'ip' => $_SERVER['REMOTE_ADDR'],
-			'page' => $_SERVER['REQUEST_URI'],
+			'ip' => cfturnstile_get_ip(),
+			'page' => isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '',
 		);
 		// Max 50
 		if(count($cfturnstile_log) > 50) {

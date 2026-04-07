@@ -39,11 +39,10 @@ function cfturnstile_field_reset() {
  */
 if(get_option('cfturnstile_login')) {
 	add_action('login_form','cfturnstile_field_login');
-	add_action('authenticate', 'cfturnstile_wp_login_check', 21, 1);
+	add_filter('authenticate', 'cfturnstile_wp_login_check', 21, 1);
 	function cfturnstile_wp_login_check($user) {
 
 		// Check skip
-		if(!isset($user->ID)) { return $user; }
 		if(defined( 'XMLRPC_REQUEST' ) && XMLRPC_REQUEST) { return $user; } // Skip XMLRPC
 		if(defined( 'REST_REQUEST' ) && REST_REQUEST) { return $user; } // Skip REST API
 		if(isset($_POST['edd_login_nonce']) && wp_verify_nonce( sanitize_text_field($_POST['edd_login_nonce']), 'edd-login-nonce')) { return $user; } // Skip EDD
@@ -193,6 +192,16 @@ if(get_option('cfturnstile_comment') && !cft_is_plugin_active('wpdiscuz/class.Wp
 			$submit_after = '';
 			$callback = '';
 			if(get_option('cfturnstile_disable_button')) { $callback = 'turnstileCommentCallback'; }
+			if ( get_option('cfturnstile_widget_label_enable', 0) ) {
+				$label_text = get_option('cfturnstile_widget_label_text');
+				$label_text = is_string($label_text) ? trim($label_text) : '';
+				if ($label_text === '') {
+					$label_text = __('Let us know you are human:', 'simple-cloudflare-turnstile');
+				} else {
+					$label_text = wp_strip_all_tags($label_text);
+				}
+				$submit_before .= '<p class="cfturnstile-widget-label" style="font-size: 14px; margin: 0 0 6px 0;"><small>' . esc_html($label_text) . '</small></p>';
+			}
 			$submit_before .= '<span id="cf-turnstile-c-'.$unique_id.'" class="cf-turnstile cf-turnstile-comments" data-action="wordpress-comment" data-callback="'.$callback.'" data-sitekey="'.sanitize_text_field($key).'" data-theme="'.sanitize_text_field($theme).'" data-language="'.sanitize_text_field($language).'" data-appearance="'.sanitize_text_field($appearance).'" data-size="'.sanitize_text_field($cfturnstile_size).'" data-retry="auto" data-retry-interval="1000"></span>';
 			$submit_before .= '<br class="cf-turnstile-br cf-turnstile-br-comments">';
 			if(get_option('cfturnstile_disable_button')) {

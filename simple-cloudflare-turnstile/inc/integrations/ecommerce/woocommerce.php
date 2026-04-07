@@ -43,7 +43,6 @@ function cfturnstile_field_checkout() {
 // Render after checkout block
 function cfturnstile_render_post_block($block_content) {
 	ob_start();
-	echo $block_content;
 	cfturnstile_field_checkout();
 	$block_content = ob_get_contents();
 	ob_end_clean();
@@ -52,6 +51,12 @@ function cfturnstile_render_post_block($block_content) {
 
 // Render before checkout block
 function cfturnstile_render_pre_block($block_content) {
+	$already_ran_turnstile_block = false;
+	if ( ! $already_ran_turnstile_block ) {
+		$already_ran_turnstile_block = true;
+	} else {
+		return $block_content;
+	}
 	ob_start();
 	cfturnstile_field_checkout();
 	echo $block_content;
@@ -164,11 +169,11 @@ if(get_option('cfturnstile_woo_checkout')) {
 							}
 						}
 					}
-				// Allow customization via filter, defaults to skip when WooPayments or Stripe express is detected.
-				$skip_on_express = apply_filters( 'cfturnstile_skip_on_express_pay', ( ($payment_method === 'woocommerce_payments' || $payment_method === 'stripe') && $express_detected ), $payment_method, $payment_data, $request );
-				if ( $skip_on_express ) {
-					$skip = 1;
-				}
+					// Allow customization via filter, defaults to skip when WooPayments or Stripe express is detected.
+					$skip_on_express = apply_filters( 'cfturnstile_skip_on_express_pay', ( ($payment_method === 'woocommerce_payments' || $payment_method === 'stripe') && $express_detected ), $payment_method, $payment_data, $request );
+					if ( $skip_on_express ) {
+						$skip = 1;
+					}
 				}
 			}
 
@@ -184,14 +189,12 @@ if(get_option('cfturnstile_woo_checkout')) {
 			// Check
 			if( !$skip && (!$guest || ( $guest && !is_user_logged_in() )) ) {
 				$extensions = $request->get_param( 'extensions' );
-				if ( empty( $extensions ) ) {
+				$token = ( is_array( $extensions ) && isset( $extensions['simple-cloudflare-turnstile']['token'] ) ) ? $extensions['simple-cloudflare-turnstile']['token'] : '';
+
+				if ( empty( $token ) ) {
 					throw new \Exception( cfturnstile_failed_message() );
 				}
-				$value = $extensions[ 'simple-cloudflare-turnstile' ];
-				if ( empty( $value ) ) {
-					throw new \Exception( cfturnstile_failed_message() );
-				}
-				$token = $value['token'];	
+				
 				$check = cfturnstile_check( $token );
 				$success = $check['success'];
 				if($success != true) {
@@ -204,8 +207,12 @@ if(get_option('cfturnstile_woo_checkout')) {
 		}
 	}
 
-	add_action('woocommerce_loaded', 'cfturnstile_register_endpoint_data');
+	add_action('woocommerce_loaded', 'cfturnstile_register_endpoint_data', 20);
 	function cfturnstile_register_endpoint_data() {
+		if ( ! function_exists( 'woocommerce_store_api_register_endpoint_data' ) ) {
+			return;
+		}
+
 		woocommerce_store_api_register_endpoint_data(
 			array(
 				'endpoint'        => 'checkout',
@@ -213,9 +220,10 @@ if(get_option('cfturnstile_woo_checkout')) {
 				'schema_callback' => function() {
 					return array(
 						'token' => array(
-							'description' => __( 'Turnstile token.', 'cfturnstile' ),
-							'type'        => 'string',
-							'context'     => array()
+							'description'       => __( 'Turnstile token.', 'simple-cloudflare-turnstile' ),
+							'type'              => 'string',
+							'context'           => array( 'view', 'edit' ),
+							'sanitize_callback' => 'sanitize_text_field',
 						),
 					);
 				},

@@ -52,14 +52,14 @@ function turnstilePMPLoginCallback() {
 }
 /* Elementor */
 function turnstileElementorCallback() {
-    document.querySelectorAll('.elementor-field-type-submit .elementor-button').forEach(function(el) {
+    document.querySelectorAll('.elementor-form button[type="submit"]').forEach(function(el) {
         el.style.pointerEvents = 'auto';
         el.style.opacity = '1';
     });
 }
 /* Kadence */
 function turnstileKadenceCallback() {
-    document.querySelectorAll('.kb-submit-field .kb-button').forEach(function(el) {
+    document.querySelectorAll('.kb-adv-form-submit-button, .kb-submit-field .kb-button, .kb-form-submit .kb-button, .kb-submit-field button[type="submit"], .kb-form-submit button[type="submit"]').forEach(function(el) {
         el.style.pointerEvents = 'auto';
         el.style.opacity = '1';
     });

@@ -28,12 +28,36 @@ if (get_option('cfturnstile_fluent')) {
         	}
 		
 		$error_message = cfturnstile_failed_message();
-		if (empty($data['cf-turnstile-response'])) {
-			wp_die($error_message, 'simple-cloudflare-turnstile');
+		$token = isset($data['cf-turnstile-response']) ? sanitize_text_field($data['cf-turnstile-response']) : '';
+
+		$_post_backup = null;
+		if ( get_option('cfturnstile_failover') ) {
+			$sync_keys = array(
+				'cf-turnstile-response',
+				'cfturnstile_failsafe',
+				'g-recaptcha-response',
+			);
+			$_post_backup = array();
+			foreach ($sync_keys as $sync_key) {
+				$_post_backup[$sync_key] = array_key_exists($sync_key, $_POST) ? $_POST[$sync_key] : null;
+				if (isset($data[$sync_key]) && !is_array($data[$sync_key])) {
+					$_POST[$sync_key] = sanitize_text_field($data[$sync_key]);
+				}
+			}
 		}
 
-		$check = cfturnstile_check($data['cf-turnstile-response']);
-		$success = $check['success'];
+		$check = cfturnstile_check($token);
+		if ( is_array($_post_backup) ) {
+			foreach ($_post_backup as $sync_key => $old_val) {
+				if ($old_val === null) {
+					unset($_POST[$sync_key]);
+				} else {
+					$_POST[$sync_key] = $old_val;
+				}
+			}
+		}
+
+		$success = (is_array($check) && isset($check['success'])) ? $check['success'] : false;
 		if ($success != true) {
 			wp_die($error_message, 'simple-cloudflare-turnstile');
 		}
