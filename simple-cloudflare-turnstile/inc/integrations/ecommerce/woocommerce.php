@@ -65,6 +65,19 @@ function cfturnstile_render_pre_block($block_content) {
 	return $block_content;
 }
 
+/**
+ * Check if the current request is a non-checkout WooCommerce AJAX call.
+ *
+ * @return bool True if the request is a wc-ajax call that is NOT the actual checkout.
+ */
+function cfturnstile_is_non_checkout_ajax() {
+	$wc_ajax = isset( $_GET['wc-ajax'] ) ? sanitize_text_field( $_GET['wc-ajax'] ) : '';
+	if ( $wc_ajax && $wc_ajax !== 'checkout' ) {
+		return true;
+	}
+	return false;
+}
+
 // Woo Checkout Check
 if(get_option('cfturnstile_woo_checkout')) {
 	// WooCommerce Checkout
@@ -99,6 +112,11 @@ if(get_option('cfturnstile_woo_checkout')) {
 			return;
 		}
 
+		// Skip non-checkout wc-ajax requests (e.g. payment gateway pre-validation) to preserve the token.
+		if ( cfturnstile_is_non_checkout_ajax() ) {
+			return;
+		}
+
 		// Skip if Turnstile disabled for payment method
 		$skip = 0;
 		if ( isset( $_POST['payment_method'] ) ) {
@@ -117,13 +135,18 @@ if(get_option('cfturnstile_woo_checkout')) {
 		$guest = esc_attr( get_option('cfturnstile_guest_only') );
 		// Check — always require a fresh Turnstile token (tokens are single-use).
 		if( !$skip && (!$guest || ( $guest && !is_user_logged_in() )) ) {
+			// If this token already passed verification, skip re-check.
+			if ( cfturnstile_get_verified( 'cfturnstile_checkout_checked' ) ) {
+				$cfturnstile_wc_checkout_ran = true;
+				return;
+			}
 			$check = cfturnstile_check();
 			$success = $check['success'];
 			if($success != true) {
 				wc_add_notice( cfturnstile_failed_message(), 'error');
+			} else {
+				cfturnstile_set_verified( 'cfturnstile_checkout_checked', '', 120 );
 			}
-			// Always mark as executed so the second hook doesn't re-verify
-			// the same (now consumed) token and produce duplicate errors.
 			$cfturnstile_wc_checkout_ran = true;
 		}
 	}
@@ -132,6 +155,11 @@ if(get_option('cfturnstile_woo_checkout')) {
 		// Prevent duplicate execution within a single request.
 		static $cfturnstile_wc_block_checkout_ran = false;
 		if ( $cfturnstile_wc_block_checkout_ran ) {
+			return;
+		}
+
+		// Skip non-checkout wc-ajax requests (e.g. payment gateway pre-validation) to preserve the token.
+		if ( cfturnstile_is_non_checkout_ajax() ) {
 			return;
 		}
 
@@ -183,19 +211,43 @@ if(get_option('cfturnstile_woo_checkout')) {
 				$token = ( is_array( $extensions ) && isset( $extensions['simple-cloudflare-turnstile']['token'] ) ) ? $extensions['simple-cloudflare-turnstile']['token'] : '';
 
 				if ( empty( $token ) ) {
-					$cfturnstile_wc_block_checkout_ran = true;
 					throw new \Exception( cfturnstile_failed_message() );
+				}
+
+				// Store token so the cleanup callback can access it.
+				global $cfturnstile_block_checkout_token;
+				$cfturnstile_block_checkout_token = $token;
+
+				// If this token already passed verification, skip re-check.
+				if ( cfturnstile_get_verified( 'cfturnstile_block_checkout_checked', $token ) ) {
+					$cfturnstile_wc_block_checkout_ran = true;
+					return;
 				}
 				
 				$check = cfturnstile_check( $token );
 				$success = $check['success'];
-				// Always mark as executed so duplicate hooks don't re-verify
-				// the same (now consumed) token and produce duplicate errors.
 				$cfturnstile_wc_block_checkout_ran = true;
 				if($success != true) {
 					throw new \Exception( cfturnstile_failed_message() );
+				} else {
+					cfturnstile_set_verified( 'cfturnstile_block_checkout_checked', $token, 120 );
 				}
 			}
+		}
+	}
+
+	// Clear checkout verification transients after all validation hooks have run
+	add_action('woocommerce_after_checkout_validation', 'cfturnstile_woo_checkout_clear_transient', 9999);
+	function cfturnstile_woo_checkout_clear_transient() {
+		cfturnstile_clear_verified( 'cfturnstile_checkout_checked' );
+	}
+
+	// Block checkout: clear the transient after the order is processed
+	add_action('woocommerce_store_api_checkout_order_processed', 'cfturnstile_woo_block_checkout_clear_transient', 9999);
+	function cfturnstile_woo_block_checkout_clear_transient() {
+		global $cfturnstile_block_checkout_token;
+		if ( ! empty( $cfturnstile_block_checkout_token ) ) {
+			cfturnstile_clear_verified( 'cfturnstile_block_checkout_checked', $cfturnstile_block_checkout_token );
 		}
 	}
 
@@ -324,7 +376,7 @@ if(get_option('cfturnstile_woo_reset')) {
 
 // Check if WooCommerce block checkout page
 function cfturnstile_is_block_based_checkout() {
-    if ( is_checkout() && !isset($_GET['pay_for_order']) ) {
+    if ( function_exists('is_checkout') && is_checkout() && !isset($_GET['pay_for_order']) ) {
         $checkout_page_id = wc_get_page_id( 'checkout' );
         if ( $checkout_page_id && has_block( 'woocommerce/checkout', get_post( $checkout_page_id )->post_content ) ) {
             return true;
