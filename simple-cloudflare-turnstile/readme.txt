@@ -4,7 +4,7 @@ Tags: cloudflare,turnstile,captcha,protect,spam
 Donate link: https://www.elliotsowersby.com/donate/
 Requires at least: 4.7
 Tested up to: 6.9
-Stable Tag: 1.39.0
+Stable Tag: 1.39.1
 License: GPLv3 or later.
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -207,6 +207,9 @@ If you are still having issues, please post a <a href="https://wordpress.org/sup
 You can report security bugs through the Patchstack Vulnerability Disclosure Program. The Patchstack team help validate, triage and handle any security vulnerabilities. [Report a security vulnerability.](https://patchstack.com/database/vdp/simple-cloudflare-turnstile)
 
 == Changelog ===
+
+= Version 1.39.1 - 1st May 2026 =
+- Fix: Fixed a potential issue with the Turnstile check on login forms failing in certain cases when it runs multiple checks in the same request.
 
 = Version 1.39.0 - 20th April 2026 =
 - New: Added integration for the "SureForms" plugin.

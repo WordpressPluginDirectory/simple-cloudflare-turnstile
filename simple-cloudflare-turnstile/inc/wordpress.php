@@ -63,8 +63,6 @@ if(get_option('cfturnstile_login')) {
 		// Check if already validated
 		if(isset($user->ID) && cfturnstile_get_verified( 'cfturnstile_login_checked' ) ) {
 			return $user;
-		} else {
-			cfturnstile_clear_verified( 'cfturnstile_login_checked' );
 		}
 
 		// Check Turnstile
